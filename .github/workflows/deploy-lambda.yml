@@ -1,0 +1,161 @@
+name: Deploy Lambda Service
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: "e.g. council, member"
+      environment:
+        required: true
+        type: string
+        description: "dev or prod"
+      aws-region:
+        required: false
+        type: string
+        default: "us-east-1"
+    secrets:
+      aws-role-arn:
+        required: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Run tests
+        run: go test ./... -race -coverprofile=coverage.out
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.service-name }}
+          path: coverage.out
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      zip-path: ${{ steps.zip.outputs.zip-path }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Build Lambda binary
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+        run: |
+          go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./cmd/lambda
+          zip -j function.zip bootstrap
+      - id: zip
+        run: echo "zip-path=function.zip" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lambda-${{ inputs.service-name }}-${{ github.sha }}
+          path: function.zip
+          retention-days: 7
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: lambda-${{ inputs.service-name }}-${{ github.sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Deploy Lambda (create or update)
+        env:
+          FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
+          REGION: ${{ inputs.aws-region }}
+          ENV: ${{ inputs.environment }}
+        run: |
+          if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" 2>/dev/null; then
+            echo "Function exists — updating code"
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" \
+              --zip-file fileb://function.zip \
+              --architectures arm64 \
+              --region "$REGION"
+          else
+            echo "Function does not exist — creating"
+            ROLE_ARN=$(aws iam get-role \
+              --role-name "councilanchor-lambda-exec-$ENV" \
+              --query 'Role.Arn' --output text)
+            aws lambda create-function \
+              --function-name "$FUNCTION_NAME" \
+              --runtime provided.al2023 \
+              --architectures arm64 \
+              --role "$ROLE_ARN" \
+              --handler bootstrap \
+              --zip-file fileb://function.zip \
+              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,AWS_REGION=$REGION}" \
+              --timeout 30 \
+              --memory-size 128 \
+              --tracing-config Mode=Active \
+              --region "$REGION"
+          fi
+
+      - name: Wait for update
+        env:
+          FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
+          REGION: ${{ inputs.aws-region }}
+        run: |
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME" \
+            --region "$REGION"
+
+      - name: Grant API Gateway invoke permission
+        env:
+          FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
+          REGION: ${{ inputs.aws-region }}
+          ENV: ${{ inputs.environment }}
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          API_ID=$(aws apigatewayv2 get-apis --region "$REGION" \
+            --query "Items[?Name=='councilanchor-api-$ENV'].ApiId" --output text)
+          if [ -n "$API_ID" ]; then
+            SOURCE_ARN="arn:aws:execute-api:$REGION:$ACCOUNT_ID:$API_ID/*/*"
+            aws lambda add-permission \
+              --function-name "$FUNCTION_NAME" \
+              --statement-id "AllowAPIGatewayInvoke" \
+              --action lambda:InvokeFunction \
+              --principal apigateway.amazonaws.com \
+              --source-arn "$SOURCE_ARN" \
+              --region "$REGION" 2>/dev/null || echo "Permission already exists — skipping"
+          else
+            echo "API Gateway not found — skipping permission grant (will be added on next deploy)"
+          fi
+
+      - name: Smoke test
+        run: |
+          STATUS=$(aws lambda invoke \
+            --function-name "councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}" \
+            --payload '{"rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/response.json \
+            --query StatusCode \
+            --output text)
+          echo "Lambda status: $STATUS"
+          cat /tmp/response.json
+          [ "$STATUS" = "200" ] || exit 1
