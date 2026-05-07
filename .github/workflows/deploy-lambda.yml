@@ -41,8 +41,6 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: test
-    outputs:
-      zip-path: ${{ steps.zip.outputs.zip-path }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -57,8 +55,6 @@ jobs:
         run: |
           go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./cmd/lambda
           zip -j function.zip bootstrap
-      - id: zip
-        run: echo "zip-path=function.zip" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: lambda-${{ inputs.service-name }}-${{ github.sha }}
@@ -70,6 +66,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.service-name }}-${{ inputs.environment }}
+      cancel-in-progress: false
     permissions:
       id-token: write
       contents: read
@@ -109,7 +108,7 @@ jobs:
               --role "$ROLE_ARN" \
               --handler bootstrap \
               --zip-file fileb://function.zip \
-              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,AWS_REGION=$REGION}" \
+              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV}" \
               --timeout 30 \
               --memory-size 128 \
               --tracing-config Mode=Active \
@@ -144,10 +143,25 @@ jobs:
               --source-arn "$SOURCE_ARN" \
               --region "$REGION" 2>/dev/null || echo "Permission already exists — skipping"
           else
-            echo "API Gateway not found — skipping permission grant (will be added on next deploy)"
+            echo "API Gateway not found — skipping permission grant"
           fi
 
-      - name: Smoke test
+  smoke-test:
+    name: Smoke test (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    needs: deploy
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Invoke health check
         run: |
           STATUS=$(aws lambda invoke \
             --function-name "councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}" \
