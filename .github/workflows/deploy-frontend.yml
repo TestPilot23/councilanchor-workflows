@@ -21,6 +21,9 @@ on:
         required: true
         description: "Multiline VITE_* env vars as a single secret"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     name: Build
