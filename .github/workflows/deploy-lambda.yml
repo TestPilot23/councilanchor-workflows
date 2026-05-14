@@ -19,6 +19,9 @@ on:
       aws-role-arn:
         required: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   test:
     name: Test
@@ -100,6 +103,8 @@ jobs:
             ROLE_ARN=$(aws iam get-role \
               --role-name "councilanchor-lambda-exec-$ENV" \
               --query 'Role.Arn' --output text)
+            APP_URL="https://councilanchor.com"
+            [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
             aws lambda create-function \
               --function-name "$FUNCTION_NAME" \
               --runtime provided.al2023 \
@@ -107,7 +112,7 @@ jobs:
               --role "$ROLE_ARN" \
               --handler bootstrap \
               --zip-file fileb://function.zip \
-              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV}" \
+              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
               --timeout 30 \
               --memory-size 128 \
               --tracing-config Mode=Active \
@@ -119,6 +124,22 @@ jobs:
           FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
           REGION: ${{ inputs.aws-region }}
         run: |
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME" \
+            --region "$REGION"
+
+      - name: Update function configuration
+        env:
+          FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
+          REGION: ${{ inputs.aws-region }}
+          ENV: ${{ inputs.environment }}
+        run: |
+          APP_URL="https://councilanchor.com"
+          [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
+          aws lambda update-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+            --region "$REGION"
           aws lambda wait function-updated \
             --function-name "$FUNCTION_NAME" \
             --region "$REGION"

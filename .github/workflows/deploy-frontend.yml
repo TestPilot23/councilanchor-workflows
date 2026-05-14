@@ -21,6 +21,9 @@ on:
         required: true
         description: "Multiline VITE_* env vars as a single secret"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     name: Build
@@ -33,7 +36,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: Write env file
-        run: echo "${{ secrets.vite-env }}" > .env.local
+        run: echo "${{ secrets.vite-env }}" > .env
       - name: Build
         run: npm run build
       - uses: actions/upload-artifact@v4
