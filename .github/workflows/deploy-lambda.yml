@@ -112,7 +112,7 @@ jobs:
               --role "$ROLE_ARN" \
               --handler bootstrap \
               --zip-file fileb://function.zip \
-              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
               --timeout 30 \
               --memory-size 128 \
               --tracing-config Mode=Active \
@@ -138,7 +138,7 @@ jobs:
           [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
           aws lambda update-function-configuration \
             --function-name "$FUNCTION_NAME" \
-            --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+            --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
             --region "$REGION"
           aws lambda wait function-updated \
             --function-name "$FUNCTION_NAME" \
