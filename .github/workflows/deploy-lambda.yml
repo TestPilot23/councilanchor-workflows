@@ -112,7 +112,7 @@ jobs:
               --role "$ROLE_ARN" \
               --handler bootstrap \
               --zip-file fileb://function.zip \
-              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,IMPORT_BUCKET=councilanchor-imports-$ENV,IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$(aws sts get-caller-identity --query Account --output text)/councilanchor-import-work-$ENV,WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,IMPORT_BUCKET=councilanchor-imports-$ENV,IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$(aws sts get-caller-identity --query Account --output text)/councilanchor-import-work-$ENV,WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
               --timeout 30 \
               --memory-size 128 \
               --tracing-config Mode=Active \
@@ -139,7 +139,7 @@ jobs:
           [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
           aws lambda update-function-configuration \
             --function-name "$FUNCTION_NAME" \
-            --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,IMPORT_BUCKET=councilanchor-imports-$ENV,IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+            --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,IMPORT_BUCKET=councilanchor-imports-$ENV,IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
             --region "$REGION"
           aws lambda wait function-updated \
             --function-name "$FUNCTION_NAME" \
