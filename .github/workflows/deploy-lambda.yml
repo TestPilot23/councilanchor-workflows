@@ -91,6 +91,29 @@ jobs:
           REGION: ${{ inputs.aws-region }}
           ENV: ${{ inputs.environment }}
         run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          APP_URL="https://councilanchor.com"
+          [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
+          SCHEDULER_ROLE_ARN=$(aws iam get-role \
+            --role-name "councilanchor-scheduler-exec-$ENV" \
+            --query 'Role.Arn' --output text 2>/dev/null || echo "")
+          SCRAPER_FN_ARN="arn:aws:lambda:$REGION:$ACCOUNT_ID:function:councilanchor-member-scraper-$ENV"
+          LAMBDA_VARS="DYNAMODB_TABLE=councilanchor-$ENV,\
+            MEMBERS_TABLE=councilanchor-$ENV-members,\
+            COUNCILS_TABLE=councilanchor-$ENV-councils,\
+            CONFLICTS_TABLE=councilanchor-$ENV-conflicts,\
+            SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,\
+            AUTH_TABLE=councilanchor-$ENV-auth,\
+            IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,\
+            OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,\
+            IMPORT_BUCKET=councilanchor-imports-$ENV,\
+            IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,\
+            WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,\
+            ENVIRONMENT=$ENV,\
+            APP_URL=$APP_URL,\
+            SCHEDULER_ROLE_ARN=$SCHEDULER_ROLE_ARN,\
+            SCRAPER_FUNCTION_ARN=$SCRAPER_FN_ARN,\
+            AUTO_IMPORT_INTERVAL_DAYS=90"
           if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" 2>/dev/null; then
             echo "Function exists — updating code"
             aws lambda update-function-code \
@@ -103,8 +126,6 @@ jobs:
             ROLE_ARN=$(aws iam get-role \
               --role-name "councilanchor-lambda-exec-$ENV" \
               --query 'Role.Arn' --output text)
-            APP_URL="https://councilanchor.com"
-            [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
             aws lambda create-function \
               --function-name "$FUNCTION_NAME" \
               --runtime provided.al2023 \
@@ -112,7 +133,7 @@ jobs:
               --role "$ROLE_ARN" \
               --handler bootstrap \
               --zip-file fileb://function.zip \
-              --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,IMPORT_BUCKET=councilanchor-imports-$ENV,IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$(aws sts get-caller-identity --query Account --output text)/councilanchor-import-work-$ENV,WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+              --environment "Variables={$LAMBDA_VARS}" \
               --timeout 30 \
               --memory-size 128 \
               --tracing-config Mode=Active \
@@ -137,9 +158,30 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           APP_URL="https://councilanchor.com"
           [ "$ENV" = "dev" ] && APP_URL="https://dev.councilanchor.com"
+          SCHEDULER_ROLE_ARN=$(aws iam get-role \
+            --role-name "councilanchor-scheduler-exec-$ENV" \
+            --query 'Role.Arn' --output text 2>/dev/null || echo "")
+          SCRAPER_FN_ARN="arn:aws:lambda:$REGION:$ACCOUNT_ID:function:councilanchor-member-scraper-$ENV"
           aws lambda update-function-configuration \
             --function-name "$FUNCTION_NAME" \
-            --environment "Variables={DYNAMODB_TABLE=councilanchor-$ENV,MEMBERS_TABLE=councilanchor-$ENV-members,COUNCILS_TABLE=councilanchor-$ENV-councils,CONFLICTS_TABLE=councilanchor-$ENV-conflicts,SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,AUTH_TABLE=councilanchor-$ENV-auth,IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,IMPORT_BUCKET=councilanchor-imports-$ENV,IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,ENVIRONMENT=$ENV,APP_URL=$APP_URL}" \
+            --environment "Variables={\
+              DYNAMODB_TABLE=councilanchor-$ENV,\
+              MEMBERS_TABLE=councilanchor-$ENV-members,\
+              COUNCILS_TABLE=councilanchor-$ENV-councils,\
+              CONFLICTS_TABLE=councilanchor-$ENV-conflicts,\
+              SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,\
+              AUTH_TABLE=councilanchor-$ENV-auth,\
+              IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,\
+              OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,\
+              IMPORT_BUCKET=councilanchor-imports-$ENV,\
+              IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,\
+              WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,\
+              ENVIRONMENT=$ENV,\
+              APP_URL=$APP_URL,\
+              SCHEDULER_ROLE_ARN=$SCHEDULER_ROLE_ARN,\
+              SCRAPER_FUNCTION_ARN=$SCRAPER_FN_ARN,\
+              AUTO_IMPORT_INTERVAL_DAYS=90\
+            }" \
             --region "$REGION"
           aws lambda wait function-updated \
             --function-name "$FUNCTION_NAME" \
