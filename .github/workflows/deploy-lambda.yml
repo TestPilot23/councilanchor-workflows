@@ -100,6 +100,7 @@ jobs:
             SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,\
             AUTH_TABLE=councilanchor-$ENV-auth,\
             IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,\
+            GEOCODING_JOBS_TABLE=councilanchor-$ENV-geocoding-jobs,\
             OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,\
             IMPORT_BUCKET=councilanchor-imports-$ENV,\
             IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,\
@@ -167,6 +168,7 @@ jobs:
               SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,\
               AUTH_TABLE=councilanchor-$ENV-auth,\
               IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,\
+              GEOCODING_JOBS_TABLE=councilanchor-$ENV-geocoding-jobs,\
               OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,\
               IMPORT_BUCKET=councilanchor-imports-$ENV,\
               IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,\
