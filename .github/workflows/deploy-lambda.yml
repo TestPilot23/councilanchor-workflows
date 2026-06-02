@@ -15,6 +15,11 @@ on:
         required: false
         type: string
         default: "us-east-1"
+      extra-env-vars:
+        required: false
+        type: string
+        default: ""
+        description: "Comma-separated KEY=VALUE pairs appended to the Lambda environment"
     secrets:
       aws-role-arn:
         required: true
@@ -85,6 +90,7 @@ jobs:
           FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
           REGION: ${{ inputs.aws-region }}
           ENV: ${{ inputs.environment }}
+          EXTRA_ENV_VARS: ${{ inputs.extra-env-vars }}
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           APP_URL="https://councilanchor.com"
@@ -110,6 +116,9 @@ jobs:
             SCHEDULER_ROLE_ARN=$SCHEDULER_ROLE_ARN,\
             SCRAPER_FUNCTION_ARN=$SCRAPER_FN_ARN,\
             AUTO_IMPORT_INTERVAL_DAYS=90"
+          if [ -n "${{ inputs.extra-env-vars }}" ]; then
+            LAMBDA_VARS="$LAMBDA_VARS,${{ inputs.extra-env-vars }}"
+          fi
           if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" 2>/dev/null; then
             echo "Function exists — updating code"
             aws lambda update-function-code \
@@ -150,6 +159,7 @@ jobs:
           FUNCTION_NAME: councilanchor-${{ inputs.service-name }}-${{ inputs.environment }}
           REGION: ${{ inputs.aws-region }}
           ENV: ${{ inputs.environment }}
+          EXTRA_ENV_VARS: ${{ inputs.extra-env-vars }}
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           APP_URL="https://councilanchor.com"
@@ -158,27 +168,28 @@ jobs:
             --role-name "councilanchor-scheduler-exec-$ENV" \
             --query 'Role.Arn' --output text 2>/dev/null || echo "")
           SCRAPER_FN_ARN="arn:aws:lambda:$REGION:$ACCOUNT_ID:function:councilanchor-member-scraper-$ENV"
+          LAMBDA_VARS="DYNAMODB_TABLE=councilanchor-$ENV,\
+            MEMBERS_TABLE=councilanchor-$ENV-members,\
+            COUNCILS_TABLE=councilanchor-$ENV-councils,\
+            CONFLICTS_TABLE=councilanchor-$ENV-conflicts,\
+            SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,\
+            AUTH_TABLE=councilanchor-$ENV-auth,\
+            IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,\
+            OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,\
+            IMPORT_BUCKET=councilanchor-imports-$ENV,\
+            IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,\
+            WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,\
+            ENVIRONMENT=$ENV,\
+            APP_URL=$APP_URL,\
+            SCHEDULER_ROLE_ARN=$SCHEDULER_ROLE_ARN,\
+            SCRAPER_FUNCTION_ARN=$SCRAPER_FN_ARN,\
+            AUTO_IMPORT_INTERVAL_DAYS=90"
+          if [ -n "$EXTRA_ENV_VARS" ]; then
+            LAMBDA_VARS="$LAMBDA_VARS,$EXTRA_ENV_VARS"
+          fi
           aws lambda update-function-configuration \
             --function-name "$FUNCTION_NAME" \
-            --environment "Variables={\
-              DYNAMODB_TABLE=councilanchor-$ENV,\
-              MEMBERS_TABLE=councilanchor-$ENV-members,\
-              COUNCILS_TABLE=councilanchor-$ENV-councils,\
-              CONFLICTS_TABLE=councilanchor-$ENV-conflicts,\
-              SNAPSHOTS_TABLE=councilanchor-$ENV-snapshots,\
-              AUTH_TABLE=councilanchor-$ENV-auth,\
-              IMPORT_JOBS_TABLE=councilanchor-$ENV-import-jobs,\
-              GEOCODING_JOBS_TABLE=councilanchor-$ENV-geocoding-jobs,\
-              OFFICER_TERMS_TABLE=councilanchor-$ENV-officer-terms,\
-              IMPORT_BUCKET=councilanchor-imports-$ENV,\
-              IMPORT_QUEUE_URL=https://sqs.$REGION.amazonaws.com/$ACCOUNT_ID/councilanchor-import-work-$ENV,\
-              WORKER_FUNCTION_NAME=councilanchor-member-worker-$ENV,\
-              ENVIRONMENT=$ENV,\
-              APP_URL=$APP_URL,\
-              SCHEDULER_ROLE_ARN=$SCHEDULER_ROLE_ARN,\
-              SCRAPER_FUNCTION_ARN=$SCRAPER_FN_ARN,\
-              AUTO_IMPORT_INTERVAL_DAYS=90\
-            }" \
+            --environment "Variables={$LAMBDA_VARS}" \
             --region "$REGION"
           aws lambda wait function-updated \
             --function-name "$FUNCTION_NAME" \
