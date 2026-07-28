@@ -41,12 +41,12 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Configure shared-go module access
-        if: secrets.shared-go-deploy-key != ''
+        if: secrets['shared-go-deploy-key'] != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.shared-go-deploy-key }}
+          ssh-private-key: ${{ secrets['shared-go-deploy-key'] }}
       - name: Set GOPRIVATE for shared-go
-        if: secrets.shared-go-deploy-key != ''
+        if: secrets['shared-go-deploy-key'] != ''
         run: |
           go env -w GOPRIVATE=github.com/TestPilot23/councilanchor-shared-go
           git config --global url."git@github.com:".insteadOf "https://github.com/"
@@ -64,12 +64,12 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Configure shared-go module access
-        if: secrets.shared-go-deploy-key != ''
+        if: secrets['shared-go-deploy-key'] != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.shared-go-deploy-key }}
+          ssh-private-key: ${{ secrets['shared-go-deploy-key'] }}
       - name: Set GOPRIVATE for shared-go
-        if: secrets.shared-go-deploy-key != ''
+        if: secrets['shared-go-deploy-key'] != ''
         run: |
           go env -w GOPRIVATE=github.com/TestPilot23/councilanchor-shared-go
           git config --global url."git@github.com:".insteadOf "https://github.com/"
