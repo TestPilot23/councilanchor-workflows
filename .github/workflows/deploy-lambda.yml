@@ -20,6 +20,11 @@ on:
         type: string
         default: ""
         description: "Comma-separated KEY=VALUE pairs appended to the Lambda environment"
+      needs-shared-go:
+        required: false
+        type: boolean
+        default: false
+        description: "Set true if this service imports councilanchor-shared-go (requires shared-go-deploy-key secret)"
     secrets:
       aws-role-arn:
         required: true
@@ -41,12 +46,12 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Configure shared-go module access
-        if: secrets['shared-go-deploy-key'] != ''
+        if: inputs.needs-shared-go
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets['shared-go-deploy-key'] }}
       - name: Set GOPRIVATE for shared-go
-        if: secrets['shared-go-deploy-key'] != ''
+        if: inputs.needs-shared-go
         run: |
           go env -w GOPRIVATE=github.com/TestPilot23/councilanchor-shared-go
           git config --global url."git@github.com:".insteadOf "https://github.com/"
@@ -64,12 +69,12 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Configure shared-go module access
-        if: secrets['shared-go-deploy-key'] != ''
+        if: inputs.needs-shared-go
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets['shared-go-deploy-key'] }}
       - name: Set GOPRIVATE for shared-go
-        if: secrets['shared-go-deploy-key'] != ''
+        if: inputs.needs-shared-go
         run: |
           go env -w GOPRIVATE=github.com/TestPilot23/councilanchor-shared-go
           git config --global url."git@github.com:".insteadOf "https://github.com/"
