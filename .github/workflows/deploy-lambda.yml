@@ -25,12 +25,20 @@ on:
         type: boolean
         default: false
         description: "Set true if this service imports councilanchor-shared-go (requires shared-go-deploy-key secret)"
+      s3-artifact-bucket:
+        required: false
+        type: string
+        default: ""
+        description: "Fallback for GitHub's Actions storage quota (see project_councilanchor_gh_actions_storage_quota memory): when set, Build/Deploy hand the zip off via this S3 bucket instead of actions/upload-artifact + actions/download-artifact. Omit for GitHub-native artifacts (the default)."
     secrets:
       aws-role-arn:
         required: true
       shared-go-deploy-key:
         required: false
         description: "Read-only SSH deploy key for councilanchor-shared-go, for services that import it"
+      s3-artifact-role-arn:
+        required: false
+        description: "OIDC role scoped to just s3-artifact-bucket. Required when that input is set"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -62,6 +70,9 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -86,7 +97,23 @@ jobs:
         run: |
           go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./cmd/lambda
           zip -j function.zip bootstrap
+
+      # S3 fallback path (see the s3-artifact-bucket input's description). A separate,
+      # narrowly-scoped role: this job runs on every pull_request too, unlike Deploy,
+      # which only ever runs on a push to develop/main — the role below can only
+      # PutObject to this one bucket, not the broad deploy role's reach.
+      - name: Configure AWS credentials for S3 artifact hand-off
+        if: inputs.s3-artifact-bucket != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.s3-artifact-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - name: Upload build artifact to S3
+        if: inputs.s3-artifact-bucket != ''
+        run: aws s3 cp function.zip "s3://${{ inputs.s3-artifact-bucket }}/${{ inputs.service-name }}/${{ github.sha }}/function.zip"
+
       - uses: actions/upload-artifact@v4
+        if: inputs.s3-artifact-bucket == ''
         with:
           name: lambda-${{ inputs.service-name }}-${{ github.sha }}
           path: function.zip
@@ -106,7 +133,18 @@ jobs:
       id-token: write
       contents: read
     steps:
+      - name: Configure AWS credentials for S3 artifact hand-off
+        if: inputs.s3-artifact-bucket != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.s3-artifact-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - name: Download build artifact from S3
+        if: inputs.s3-artifact-bucket != ''
+        run: aws s3 cp "s3://${{ inputs.s3-artifact-bucket }}/${{ inputs.service-name }}/${{ github.sha }}/function.zip" function.zip
+
       - uses: actions/download-artifact@v4
+        if: inputs.s3-artifact-bucket == ''
         with:
           name: lambda-${{ inputs.service-name }}-${{ github.sha }}
 

@@ -10,6 +10,11 @@ on:
         required: false
         type: string
         default: "us-east-1"
+      s3-artifact-bucket:
+        required: false
+        type: string
+        default: ""
+        description: "Fallback for GitHub's Actions storage quota (see project_councilanchor_gh_actions_storage_quota memory): when set, Build/Deploy hand the dist/ folder off via this S3 bucket instead of actions/upload-artifact + actions/download-artifact. Omit for GitHub-native artifacts (the default)."
     secrets:
       aws-role-arn:
         required: true
@@ -20,6 +25,9 @@ on:
       vite-env:
         required: true
         description: "Multiline VITE_* env vars as a single secret"
+      s3-artifact-role-arn:
+        required: false
+        description: "OIDC role scoped to just s3-artifact-bucket. Required when that input is set"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -28,6 +36,9 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,7 +50,22 @@ jobs:
         run: echo "${{ secrets.vite-env }}" > .env
       - name: Build
         run: npm run build
+
+      # S3 fallback path (see the s3-artifact-bucket input's description). A separate,
+      # narrowly-scoped role: unlike Deploy, this job runs on pull_request too — the
+      # role below can only PutObject to this one bucket, not the broad deploy role's reach.
+      - name: Configure AWS credentials for S3 artifact hand-off
+        if: inputs.s3-artifact-bucket != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.s3-artifact-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - name: Upload build artifact to S3
+        if: inputs.s3-artifact-bucket != ''
+        run: aws s3 sync dist/ "s3://${{ inputs.s3-artifact-bucket }}/frontend/${{ github.sha }}/dist/" --delete
+
       - uses: actions/upload-artifact@v4
+        if: inputs.s3-artifact-bucket == ''
         with:
           name: frontend-dist-${{ github.sha }}
           path: dist/
@@ -57,7 +83,20 @@ jobs:
       id-token: write
       contents: read
     steps:
+      - name: Configure AWS credentials for S3 artifact hand-off
+        if: inputs.s3-artifact-bucket != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.s3-artifact-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - name: Download build artifact from S3
+        if: inputs.s3-artifact-bucket != ''
+        run: |
+          mkdir -p dist
+          aws s3 sync "s3://${{ inputs.s3-artifact-bucket }}/frontend/${{ github.sha }}/dist/" dist/
+
       - uses: actions/download-artifact@v4
+        if: inputs.s3-artifact-bucket == ''
         with:
           name: frontend-dist-${{ github.sha }}
           path: dist/
