@@ -43,7 +43,10 @@ jobs:
         with:
           name: frontend-dist-${{ github.sha }}
           path: dist/
-          retention-days: 7
+          # The build->deploy hop within one run is all this artifact needs to survive; a short
+          # retention keeps the org's shared Actions artifact storage quota from filling with builds
+          # nothing downloads again. See councilAnchor project_councilanchor_gh_actions_storage_quota memory.
+          retention-days: 1
 
   deploy:
     name: Deploy to ${{ inputs.environment }}
