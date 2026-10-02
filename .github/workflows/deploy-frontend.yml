@@ -40,8 +40,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -56,7 +56,7 @@ jobs:
       # role below can only PutObject to this one bucket, not the broad deploy role's reach.
       - name: Configure AWS credentials for S3 artifact hand-off
         if: inputs.s3-artifact-bucket != ''
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.s3-artifact-role-arn }}
           aws-region: ${{ inputs.aws-region }}
@@ -64,7 +64,7 @@ jobs:
         if: inputs.s3-artifact-bucket != ''
         run: aws s3 sync dist/ "s3://${{ inputs.s3-artifact-bucket }}/frontend/${{ github.sha }}/dist/" --delete
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: inputs.s3-artifact-bucket == ''
         with:
           name: frontend-dist-${{ github.sha }}
@@ -85,7 +85,7 @@ jobs:
     steps:
       - name: Configure AWS credentials for S3 artifact hand-off
         if: inputs.s3-artifact-bucket != ''
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.s3-artifact-role-arn }}
           aws-region: ${{ inputs.aws-region }}
@@ -95,14 +95,14 @@ jobs:
           mkdir -p dist
           aws s3 sync "s3://${{ inputs.s3-artifact-bucket }}/frontend/${{ github.sha }}/dist/" dist/
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: inputs.s3-artifact-bucket == ''
         with:
           name: frontend-dist-${{ github.sha }}
           path: dist/
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.aws-role-arn }}
           aws-region: ${{ inputs.aws-region }}

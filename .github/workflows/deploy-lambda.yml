@@ -48,14 +48,14 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
       - name: Configure shared-go module access
         if: inputs.needs-shared-go
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets['shared-go-deploy-key'] }}
       - name: Set GOPRIVATE for shared-go
@@ -74,14 +74,14 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
       - name: Configure shared-go module access
         if: inputs.needs-shared-go
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets['shared-go-deploy-key'] }}
       - name: Set GOPRIVATE for shared-go
@@ -104,7 +104,7 @@ jobs:
       # PutObject to this one bucket, not the broad deploy role's reach.
       - name: Configure AWS credentials for S3 artifact hand-off
         if: inputs.s3-artifact-bucket != ''
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.s3-artifact-role-arn }}
           aws-region: ${{ inputs.aws-region }}
@@ -112,7 +112,7 @@ jobs:
         if: inputs.s3-artifact-bucket != ''
         run: aws s3 cp function.zip "s3://${{ inputs.s3-artifact-bucket }}/${{ inputs.service-name }}/${{ github.sha }}/function.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: inputs.s3-artifact-bucket == ''
         with:
           name: lambda-${{ inputs.service-name }}-${{ github.sha }}
@@ -135,7 +135,7 @@ jobs:
     steps:
       - name: Configure AWS credentials for S3 artifact hand-off
         if: inputs.s3-artifact-bucket != ''
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.s3-artifact-role-arn }}
           aws-region: ${{ inputs.aws-region }}
@@ -143,13 +143,13 @@ jobs:
         if: inputs.s3-artifact-bucket != ''
         run: aws s3 cp "s3://${{ inputs.s3-artifact-bucket }}/${{ inputs.service-name }}/${{ github.sha }}/function.zip" function.zip
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: inputs.s3-artifact-bucket == ''
         with:
           name: lambda-${{ inputs.service-name }}-${{ github.sha }}
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.aws-role-arn }}
           aws-region: ${{ inputs.aws-region }}
@@ -295,7 +295,7 @@ jobs:
       contents: read
     steps:
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.aws-role-arn }}
           aws-region: ${{ inputs.aws-region }}
