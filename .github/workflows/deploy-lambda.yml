@@ -30,6 +30,11 @@ on:
         type: string
         default: ""
         description: "Fallback for GitHub's Actions storage quota (see project_councilanchor_gh_actions_storage_quota memory): when set, Build/Deploy hand the zip off via this S3 bucket instead of actions/upload-artifact + actions/download-artifact. Omit for GitHub-native artifacts (the default)."
+      go-baseline:
+        required: false
+        type: string
+        default: ""
+        description: "Fleet Go baseline, e.g. 1.26. When set, the job fails if go.mod's go directive is not that version and GOTOOLCHAIN=local stops Go from downloading a different toolchain. Empty skips the check."
     secrets:
       aws-role-arn:
         required: true
@@ -47,8 +52,21 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: ${{ inputs.go-baseline != '' && 'local' || 'auto' }}
     steps:
       - uses: actions/checkout@v7
+      - name: Check Go baseline
+        if: inputs.go-baseline != ''
+        env:
+          BASELINE: ${{ inputs.go-baseline }}
+          SERVICE: ${{ inputs.service-name }}
+        run: |
+          declared=$(awk '/^go /{print $2; exit}' go.mod)
+          case "$declared" in
+            "$BASELINE"|"$BASELINE".*) ;;
+            *) echo "::error::$SERVICE: go.mod declares go $declared but the fleet baseline is $BASELINE"; exit 1 ;;
+          esac
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -73,6 +91,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      GOTOOLCHAIN: ${{ inputs.go-baseline != '' && 'local' || 'auto' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
