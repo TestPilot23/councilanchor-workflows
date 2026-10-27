@@ -15,7 +15,7 @@ Builds and deploys a Go Lambda service.
 | `service-name` | Yes | e.g. `council`, `member` |
 | `environment` | Yes | `dev` or `prod` |
 | `aws-region` | No | Default: `us-east-1` |
-| `go-baseline` | No | Fleet Go version, e.g. `1.26`. When set, the Test job fails if `go.mod`'s `go` directive differs (naming the service and both versions) and `GOTOOLCHAIN=local` blocks toolchain download. Empty skips the check. |
+| `go-baseline` | No (default `1.26`) | Fleet Go version, set here once for every service. The Test job fails if `go.mod`'s `go` directive differs (naming the service and both versions) and `GOTOOLCHAIN=local` blocks toolchain download. Bump the default to move the fleet; an empty string skips the check. |
 
 **Secrets:**
 

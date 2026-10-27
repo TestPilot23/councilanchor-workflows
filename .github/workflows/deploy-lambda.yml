@@ -33,8 +33,8 @@ on:
       go-baseline:
         required: false
         type: string
-        default: ""
-        description: "Fleet Go baseline, e.g. 1.26. When set, the job fails if go.mod's go directive is not that version and GOTOOLCHAIN=local stops Go from downloading a different toolchain. Empty skips the check."
+        default: "1.26"
+        description: "Fleet Go baseline. The job fails if go.mod's go directive is not that version and GOTOOLCHAIN=local stops Go from downloading a different toolchain. Bump this default to move the whole fleet; pass an empty string to skip the check."
     secrets:
       aws-role-arn:
         required: true
