@@ -1,0 +1,108 @@
+name: Lint & Test Go Service
+
+# Reusable lint + vet + gofmt + test job for the Go services, so the pull_request check is
+# defined once instead of copied into each service's deploy.yml.
+
+on:
+  workflow_call:
+    inputs:
+      needs-shared-go:
+        required: false
+        type: boolean
+        default: true
+        description: "Set true if this service imports councilanchor-shared-go (requires shared-go-deploy-key secret)"
+      golangci-lint-version:
+        required: false
+        type: string
+        default: "v1.64.8"
+        description: "golangci-lint release to build and cache. Pinned so the cache key is stable; bump it deliberately."
+    secrets:
+      shared-go-deploy-key:
+        required: false
+        description: "Read-only SSH deploy key for councilanchor-shared-go, for services that import it"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  lint-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the lint step diffs against the PR base / previous push to report only new issues.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Configure shared-go module access
+        if: inputs.needs-shared-go
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.shared-go-deploy-key }}
+      - name: Set GOPRIVATE for shared-go
+        if: inputs.needs-shared-go
+        run: |
+          go env -w GOPRIVATE=github.com/TestPilot23/*
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
+      - run: go mod download
+
+      # golangci-lint is built from source with the job's own Go toolchain: the prebuilt release
+      # binaries lag the services' Go version and refuse to lint newer modules. That build takes
+      # ~100s, so the binary is cached per (lint version, Go version) and rebuilt only on a miss.
+      - name: Get Go version for the lint cache key
+        id: go
+        run: echo "version=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+      - name: Restore golangci-lint binary
+        id: lint-bin
+        uses: actions/cache@v6
+        with:
+          path: ~/go/bin/golangci-lint
+          key: golangci-lint-${{ runner.os }}-${{ inputs.golangci-lint-version }}-${{ steps.go.outputs.version }}
+      - name: Build golangci-lint
+        if: steps.lint-bin.outputs.cache-hit != 'true'
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
+
+      # golangci-lint's own analysis cache: without it every run re-analyses all packages (~40s extra).
+      # Keyed on go.sum, falling back to the newest cache for the same lint version.
+      - name: Restore golangci-lint analysis cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-lint-analysis-${{ runner.os }}-${{ inputs.golangci-lint-version }}-${{ hashFiles('go.sum') }}
+          restore-keys: golangci-lint-analysis-${{ runner.os }}-${{ inputs.golangci-lint-version }}-
+
+      # Only issues on lines changed by this PR/push count, so pre-existing findings on develop
+      # do not block unrelated changes (same behaviour golangci-lint-action's only-new-issues had).
+      - name: Lint (new issues only)
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            base="origin/$BASE_REF"
+          elif [ -n "$BEFORE" ] && ! [[ "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            base="HEAD~1"
+          fi
+          git diff "$base"...HEAD > "$RUNNER_TEMP/new-issues.patch" || git diff "$base" HEAD > "$RUNNER_TEMP/new-issues.patch"
+          ~/go/bin/golangci-lint run --new-from-patch="$RUNNER_TEMP/new-issues.patch" --timeout=5m
+
+      - run: go vet ./...
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$out"
+            exit 1
+          fi
+
+      - run: go test ./...
