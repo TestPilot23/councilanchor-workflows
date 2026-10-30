@@ -67,6 +67,15 @@ jobs:
         if: steps.lint-bin.outputs.cache-hit != 'true'
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
 
+      # golangci-lint's own analysis cache: without it every run re-analyses all packages (~40s extra).
+      # Keyed on go.sum, falling back to the newest cache for the same lint version.
+      - name: Restore golangci-lint analysis cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-lint-analysis-${{ runner.os }}-${{ inputs.golangci-lint-version }}-${{ hashFiles('go.sum') }}
+          restore-keys: golangci-lint-analysis-${{ runner.os }}-${{ inputs.golangci-lint-version }}-
+
       # Only issues on lines changed by this PR/push count, so pre-existing findings on develop
       # do not block unrelated changes (same behaviour golangci-lint-action's only-new-issues had).
       - name: Lint (new issues only)
